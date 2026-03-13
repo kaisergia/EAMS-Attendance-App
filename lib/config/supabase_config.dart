@@ -1,0 +1,3 @@
+const String supabaseUrl = 'https://joyrstittieqqfvvuuwb.supabase.co';
+const String supabaseAnonKey =
+    'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImpveXJzdGl0dGllcXFmdnZ1dXdiIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAzNzExMDAsImV4cCI6MjA4NTk0NzEwMH0.4KX0OIQhYqYjDO2F2vl7OQ5jrxxqcs158X8kJYqg57I';
