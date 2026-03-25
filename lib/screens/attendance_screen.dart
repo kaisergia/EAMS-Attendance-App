@@ -18,6 +18,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
   final _studentIdController = TextEditingController();
   bool _showScanner = false;
   bool _isProcessing = false;
+  bool _isTimeOut = false; // false = TIME IN, true = TIME OUT (only used when requireLogout)
+
+  @override
+  void initState() {
+    super.initState();
+    // Force TIME IN only when event doesn't require logout
+    if (!widget.event.requireLogout) _isTimeOut = false;
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -70,7 +78,117 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 textAlign: TextAlign.center,
                 style: TextStyle(color: Colors.grey[600]),
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
+
+              // Time In / Time Out toggle — only show if event requires logout
+              if (widget.event.requireLogout)
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                        color: _isTimeOut ? Colors.blue : Colors.green, width: 2),
+                    color: (_isTimeOut ? Colors.blue : Colors.green)
+                        .withValues(alpha: 0.08),
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isTimeOut = false),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color: !_isTimeOut
+                                  ? Colors.green
+                                  : Colors.transparent,
+                              borderRadius: const BorderRadius.horizontal(
+                                  left: Radius.circular(10)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.login,
+                                    color: !_isTimeOut
+                                        ? Colors.white
+                                        : Colors.green,
+                                    size: 20),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'TIME IN',
+                                  style: TextStyle(
+                                    color: !_isTimeOut
+                                        ? Colors.white
+                                        : Colors.green,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => setState(() => _isTimeOut = true),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            decoration: BoxDecoration(
+                              color:
+                                  _isTimeOut ? Colors.blue : Colors.transparent,
+                              borderRadius: const BorderRadius.horizontal(
+                                  right: Radius.circular(10)),
+                            ),
+                            child: Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.logout,
+                                    color:
+                                        _isTimeOut ? Colors.white : Colors.blue,
+                                    size: 20),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'TIME OUT',
+                                  style: TextStyle(
+                                    color:
+                                        _isTimeOut ? Colors.white : Colors.blue,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                )
+              else
+                Container(
+                  margin: const EdgeInsets.only(bottom: 20),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    color: Colors.green,
+                  ),
+                  child: const Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(Icons.login, color: Colors.white, size: 20),
+                      SizedBox(width: 6),
+                      Text(
+                        'TIME IN',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
 
               // Scanner or manual input
               if (_showScanner)
@@ -273,17 +391,25 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
       await SupabaseService.recordAttendance(
         eventId: widget.event.id,
         studentProfileId: student.id,
+        attendanceType: _isTimeOut ? 'log_out' : 'log_in',
       );
 
       // 4. Show success dialog
-      if (mounted) _showSuccessDialog(student, rawStudentId, alreadyFulfilled: alreadyFulfilled);
+      if (mounted) {
+        _showSuccessDialog(
+          student,
+          rawStudentId,
+          alreadyFulfilled: alreadyFulfilled,
+          attendanceType: _isTimeOut ? 'log_out' : 'log_in',
+        );
+      }
     } catch (e) {
       final msg = e.toString();
       if (msg.contains('duplicate key') ||
           msg.contains('unique') ||
           msg.contains('23505')) {
         _showSnack(
-            'Student $rawStudentId is already recorded for this event.',
+            'Student $rawStudentId already has a ${_isTimeOut ? "TIME OUT" : "TIME IN"} record for this event.',
             Colors.orange);
       } else {
         _showSnack('Error recording attendance: $msg', Colors.red);
@@ -292,7 +418,12 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
     }
   }
 
-  void _showSuccessDialog(Profile student, String rawStudentId, {bool alreadyFulfilled = false}) {
+  void _showSuccessDialog(
+    Profile student,
+    String rawStudentId, {
+    bool alreadyFulfilled = false,
+    required String attendanceType,
+  }) {
     final reqName = widget.event.requirementName;
     final hasReq = reqName != null;
 
@@ -322,9 +453,10 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             CircleAvatar(
               radius: 40,
               backgroundColor: primaryRed.withValues(alpha: 0.12),
-              backgroundImage: student.avatarUrl != null && student.avatarUrl!.isNotEmpty
-                  ? NetworkImage(student.avatarUrl!)
-                  : null,
+              backgroundImage:
+                  student.avatarUrl != null && student.avatarUrl!.isNotEmpty
+                      ? NetworkImage(student.avatarUrl!)
+                      : null,
               child: student.avatarUrl == null || student.avatarUrl!.isEmpty
                   ? Text(
                       student.fullName.isNotEmpty
@@ -351,7 +483,8 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
             ),
             const SizedBox(height: 8),
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
               decoration: BoxDecoration(
                 color: badgeColor.withValues(alpha: 0.08),
                 borderRadius: BorderRadius.circular(8),
@@ -361,6 +494,30 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
                 badgeText,
                 textAlign: TextAlign.center,
                 style: TextStyle(color: badgeColor, fontSize: 12),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Container(
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+              decoration: BoxDecoration(
+                color: (attendanceType == 'log_out' ? Colors.blue : Colors.green)
+                    .withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                    color: attendanceType == 'log_out'
+                        ? Colors.blue
+                        : Colors.green),
+              ),
+              child: Text(
+                attendanceType == 'log_out'
+                    ? 'TIME OUT recorded'
+                    : 'TIME IN recorded',
+                style: TextStyle(
+                  color: attendanceType == 'log_out' ? Colors.blue : Colors.green,
+                  fontWeight: FontWeight.bold,
+                  fontSize: 13,
+                ),
               ),
             ),
           ],

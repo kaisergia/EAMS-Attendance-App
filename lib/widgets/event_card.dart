@@ -126,7 +126,7 @@ class _EventCardState extends State<EventCard>
         onTap: _handleTap,
         onLongPress: () => _showContextMenu(context),
         child: Container(
-          constraints: const BoxConstraints(minHeight: 160, maxHeight: 180),
+          constraints: const BoxConstraints(minHeight: 180, maxHeight: 210),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(16),
             color: Colors.white,
@@ -141,54 +141,79 @@ class _EventCardState extends State<EventCard>
           ),
           child: Stack(
             children: [
-              Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Container(
-                      width: 56,
-                      height: 56,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: primaryRed.withValues(alpha: 0.15),
-                      ),
-                      child: const Icon(Icons.event, color: primaryRed, size: 28),
+              Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  const Spacer(),
+                  Container(
+                    width: 56,
+                    height: 56,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: primaryRed.withValues(alpha: 0.15),
                     ),
-                    const SizedBox(height: 10),
+                    child: const Icon(Icons.event, color: primaryRed, size: 28),
+                  ),
+                  const SizedBox(height: 8),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 10),
+                    child: Text(
+                      widget.event.name,
+                      textAlign: TextAlign.center,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: darkRed,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 13,
+                      ),
+                    ),
+                  ),
+                  if (widget.event.description.isNotEmpty)
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 10),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 10, vertical: 2),
                       child: Text(
-                        widget.event.name,
+                        widget.event.description,
                         textAlign: TextAlign.center,
-                        maxLines: 2,
+                        maxLines: 1,
                         overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          color: darkRed,
-                          fontWeight: FontWeight.bold,
-                          fontSize: 13,
+                        style:
+                            TextStyle(color: Colors.grey[500], fontSize: 10),
+                      ),
+                    ),
+                  const SizedBox(height: 2),
+                  Text(
+                    dateStr,
+                    style: TextStyle(color: Colors.grey[400], fontSize: 10),
+                  ),
+                  const Spacer(),
+                  // View Attendance button
+                  if (widget.onViewHistory != null)
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+                      child: SizedBox(
+                        width: double.infinity,
+                        height: 28,
+                        child: OutlinedButton.icon(
+                          onPressed: widget.onViewHistory,
+                          icon: const Icon(Icons.people_outline, size: 14),
+                          label: const Text(
+                            'Attendance',
+                            style: TextStyle(fontSize: 10, fontWeight: FontWeight.w600),
+                          ),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: primaryRed,
+                            side: BorderSide(color: primaryRed.withValues(alpha: 0.3)),
+                            padding: const EdgeInsets.symmetric(horizontal: 8),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                          ),
                         ),
                       ),
                     ),
-                    if (widget.event.description.isNotEmpty)
-                      Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 10, vertical: 2),
-                        child: Text(
-                          widget.event.description,
-                          textAlign: TextAlign.center,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style:
-                              TextStyle(color: Colors.grey[500], fontSize: 10),
-                        ),
-                      ),
-                    const SizedBox(height: 4),
-                    Text(
-                      dateStr,
-                      style: TextStyle(color: Colors.grey[400], fontSize: 10),
-                    ),
-                  ],
-                ),
+                ],
               ),
               // Tappable 3-dot menu button
               Positioned(

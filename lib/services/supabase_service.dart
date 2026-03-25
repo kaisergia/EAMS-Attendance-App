@@ -1,6 +1,6 @@
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/profile.dart';
-import '../models/office.dart';
+import '../models/organization.dart';
 import '../models/event.dart';
 
 class SupabaseService {
@@ -25,7 +25,7 @@ class SupabaseService {
   // ── Profile ───────────────────────────────────────────────────────────────
 
   /// Fetches the profile for the currently authenticated user.
-  /// Throws if role != 'office'.
+  /// Throws if role is not one of 'office', 'department', 'club'.
   static Future<Profile> fetchCurrentProfile() async {
     final uid = supabase.auth.currentUser!.id;
     final data = await supabase
@@ -34,52 +34,69 @@ class SupabaseService {
         .eq('id', uid)
         .single();
     final profile = Profile.fromMap(data);
-    if (profile.role != 'office') {
-      throw Exception('This app is for office staff only.');
+    if (!['office', 'department', 'club'].contains(profile.role)) {
+      throw Exception('This app is for staff only.');
     }
     return profile;
   }
 
-  // ── Office ────────────────────────────────────────────────────────────────
+  // ── Organization ──────────────────────────────────────────────────────────
 
-  /// Returns the office where head_id = current user's uid.
-  static Future<Office?> fetchMyOffice() async {
+  /// Returns the organization (office/department/club) where the current user
+  /// is the head/adviser.
+  static Future<Organization?> fetchMyOrganization() async {
     final uid = supabase.auth.currentUser!.id;
-    final data = await supabase
-        .from('offices')
-        .select()
-        .eq('head_id', uid)
-        .maybeSingle();
-    if (data == null) return null;
-    return Office.fromMap(data);
+    final profile = await supabase.from('profiles').select('role').eq('id', uid).single();
+    final role = profile['role'] as String;
+
+    if (role == 'office') {
+      final data = await supabase.from('offices').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'office');
+    } else if (role == 'department') {
+      final data = await supabase.from('departments').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'department');
+    } else if (role == 'club') {
+      final data = await supabase.from('clubs').select().eq('adviser_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'club');
+    }
+    return null;
   }
 
   // ── Events ────────────────────────────────────────────────────────────────
 
-  static Future<List<Event>> fetchEventsForOffice(String officeId) async {
+  static Future<List<Event>> fetchEventsForSource(
+      String sourceType, String sourceId) async {
     final data = await supabase
         .from('events')
         .select('*, requirement:requirements(id, name)')
-        .eq('office_id', officeId)
+        .eq('source_type', sourceType)
+        .eq('source_id', sourceId)
         .order('event_date', ascending: false);
     return (data as List).map((e) => Event.fromMap(e)).toList();
   }
 
   static Future<Event> createEvent({
-    required String officeId,
+    required String sourceType,
+    required String sourceId,
     required String name,
     required String description,
     required DateTime eventDate,
     String? requirementId,
+    bool requireLogout = false,
   }) async {
     final uid = supabase.auth.currentUser!.id;
     final data = await supabase.from('events').insert({
-      'office_id': officeId,
+      'source_type': sourceType,
+      'source_id': sourceId,
       'name': name,
       'description': description,
       'event_date': eventDate.toIso8601String(),
       'created_by': uid,
       'is_active': true,
+      'require_logout': requireLogout,
       if (requirementId != null) 'requirement_id': requirementId,
     }).select('*, requirement:requirements(id, name)').single();
     return Event.fromMap(data);
@@ -92,18 +109,30 @@ class SupabaseService {
     required DateTime eventDate,
     String? requirementId,
     bool clearRequirement = false,
+    String? previousRequirementId,
+    bool requireLogout = false,
   }) async {
+    final newReqId = clearRequirement ? null : requirementId;
     final data = await supabase
         .from('events')
         .update({
           'name': name,
           'description': description,
           'event_date': eventDate.toIso8601String(),
-          'requirement_id': clearRequirement ? null : requirementId,
+          'requirement_id': newReqId,
+          'require_logout': requireLogout,
         })
         .eq('id', eventId)
         .select('*, requirement:requirements(id, name)')
         .single();
+
+    // If requirement was just linked (was null, now set), backfill existing attendance
+    if (previousRequirementId == null && newReqId != null) {
+      await supabase.rpc('backfill_attendance_submissions', params: {
+        'p_event_id': eventId,
+      });
+    }
+
     return Event.fromMap(data);
   }
 
@@ -121,33 +150,34 @@ class SupabaseService {
 
   // ── Requirements ──────────────────────────────────────────────────────────
 
-  /// Returns all requirements for an office (for management screen).
-  static Future<List<Map<String, dynamic>>> fetchRequirementsForOffice(
-      String officeId) async {
+  /// Returns all requirements for an organization source (for management screen).
+  static Future<List<Map<String, dynamic>>> fetchRequirementsForSource(
+      String sourceType, String sourceId) async {
     final data = await supabase
         .from('requirements')
         .select()
-        .eq('source_type', 'office')
-        .eq('source_id', officeId)
+        .eq('source_type', sourceType)
+        .eq('source_id', sourceId)
         .order('order', ascending: true);
     return List<Map<String, dynamic>>.from(data as List);
   }
 
   /// Returns only attendance-based requirements for the event requirement dropdown.
-  static Future<List<Map<String, dynamic>>> fetchAttendanceRequirementsForOffice(
-      String officeId) async {
+  static Future<List<Map<String, dynamic>>> fetchAttendanceRequirementsForSource(
+      String sourceType, String sourceId) async {
     final data = await supabase
         .from('requirements')
         .select('id, name')
-        .eq('source_type', 'office')
-        .eq('source_id', officeId)
+        .eq('source_type', sourceType)
+        .eq('source_id', sourceId)
         .eq('is_attendance', true)
         .order('order', ascending: true);
     return List<Map<String, dynamic>>.from(data as List);
   }
 
   static Future<Map<String, dynamic>> createRequirement({
-    required String officeId,
+    required String sourceType,
+    required String sourceId,
     required String name,
     String? description,
     bool isRequired = true,
@@ -157,8 +187,8 @@ class SupabaseService {
     final existing = await supabase
         .from('requirements')
         .select('order')
-        .eq('source_type', 'office')
-        .eq('source_id', officeId)
+        .eq('source_type', sourceType)
+        .eq('source_id', sourceId)
         .order('order', ascending: false)
         .limit(1);
     final nextOrder = (existing as List).isNotEmpty
@@ -166,8 +196,8 @@ class SupabaseService {
         : 0;
 
     final data = await supabase.from('requirements').insert({
-      'source_type': 'office',
-      'source_id': officeId,
+      'source_type': sourceType,
+      'source_id': sourceId,
       'name': name,
       if (description != null && description.isNotEmpty)
         'description': description,
@@ -210,6 +240,29 @@ class SupabaseService {
     await supabase.from('requirements').delete().eq('id', id);
   }
 
+  // ── Attendance helpers ───────────────────────────────────────────────────
+
+  /// Deletes all attendance records for a student on an event,
+  /// and cleans up related requirement_submissions via DB function.
+  static Future<int> deleteStudentAttendance(
+      String eventId, String studentId) async {
+    final data = await supabase.rpc('delete_student_attendance', params: {
+      'p_event_id': eventId,
+      'p_student_id': studentId,
+    });
+    return (data as int?) ?? 0;
+  }
+
+  /// Returns the number of attendance records for an event.
+  /// Used to lock the requirement dropdown after scanning has started.
+  static Future<int> countAttendanceForEvent(String eventId) async {
+    final data = await supabase
+        .from('attendance_records')
+        .select('id')
+        .eq('event_id', eventId);
+    return (data as List).length;
+  }
+
   // ── Attendance ────────────────────────────────────────────────────────────
 
   /// Looks up a profile by student_id field (e.g. "2024-0001").
@@ -228,7 +281,7 @@ class SupabaseService {
       String eventId) async {
     final data = await supabase
         .from('attendance_records')
-        .select('id, scanned_at, student:profiles!attendance_records_student_id_fkey(id, first_name, last_name, student_id, course, year_level, avatar_url)')
+        .select('id, scanned_at, attendance_type, student:profiles!attendance_records_student_id_fkey(id, first_name, last_name, student_id, course, year_level, avatar_url)')
         .eq('event_id', eventId)
         .order('scanned_at', ascending: true);
     return List<Map<String, dynamic>>.from(data as List);
@@ -255,12 +308,14 @@ class SupabaseService {
   static Future<Map<String, dynamic>> recordAttendance({
     required String eventId,
     required String studentProfileId,
+    required String attendanceType,
   }) async {
     final uid = supabase.auth.currentUser!.id;
     final data = await supabase.from('attendance_records').insert({
       'event_id': eventId,
       'student_id': studentProfileId,
       'scanned_by': uid,
+      'attendance_type': attendanceType,
     }).select().single();
     return data;
   }

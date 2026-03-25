@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../models/office.dart';
+import '../models/organization.dart';
 import '../services/supabase_service.dart';
 import '../theme/colors.dart';
 
 class RequirementsScreen extends StatefulWidget {
-  final Office office;
+  final Organization organization;
 
-  const RequirementsScreen({required this.office, super.key});
+  const RequirementsScreen({required this.organization, super.key});
 
   @override
   State<RequirementsScreen> createState() => _RequirementsScreenState();
@@ -25,8 +25,8 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
   Future<void> _loadRequirements() async {
     setState(() => _isLoading = true);
     try {
-      final reqs =
-          await SupabaseService.fetchRequirementsForOffice(widget.office.id);
+      final reqs = await SupabaseService.fetchRequirementsForSource(
+          widget.organization.sourceType, widget.organization.id);
       setState(() {
         _requirements = reqs;
         _isLoading = false;
@@ -63,7 +63,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                   color: Colors.white, fontWeight: FontWeight.bold),
             ),
             Text(
-              widget.office.name,
+              widget.organization.name,
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
@@ -192,7 +192,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                         Expanded(
                           child: Text(
                             'Students cannot manually submit this. '
-                            'Office staff must scan them.',
+                            'Staff must scan them.',
                             style: TextStyle(
                                 color: Colors.blue, fontSize: 12),
                           ),
@@ -227,7 +227,8 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                       final nav = Navigator.of(ctx);
                       try {
                         await SupabaseService.createRequirement(
-                          officeId: widget.office.id,
+                          sourceType: widget.organization.sourceType,
+                          sourceId: widget.organization.id,
                           name: name,
                           description: descController.text.trim(),
                           isRequired: isRequired,
@@ -337,7 +338,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                         Expanded(
                           child: Text(
                             'Students cannot manually submit this. '
-                            'Office staff must scan them.',
+                            'Staff must scan them.',
                             style: TextStyle(
                                 color: Colors.blue, fontSize: 12),
                           ),
@@ -469,7 +470,10 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
         setState(() {
           final idx = _requirements.indexWhere((r) => r['id'] == req['id']);
           if (idx != -1) {
-            _requirements[idx] = {..._requirements[idx], 'is_published': newValue};
+            _requirements[idx] = {
+              ..._requirements[idx],
+              'is_published': newValue
+            };
           }
         });
       }

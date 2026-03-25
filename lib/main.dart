@@ -64,11 +64,11 @@ class _AuthGateState extends State<AuthGate> {
 
     try {
       final profile = await SupabaseService.fetchCurrentProfile();
-      final office = await SupabaseService.fetchMyOffice();
+      final org = await SupabaseService.fetchMyOrganization();
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DashboardScreen(profile: profile, office: office),
+          builder: (_) => DashboardScreen(profile: profile, organization: org),
         ),
       );
     } catch (_) {

@@ -45,7 +45,7 @@ class _LoginScreenState extends State<LoginScreen> {
               ),
               const SizedBox(height: 10),
               Text(
-                'Office Staff Portal',
+                'Staff Portal',
                 textAlign: TextAlign.center,
                 style: Theme.of(context)
                     .textTheme
@@ -147,21 +147,21 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await SupabaseService.signInWithEmail(email, password);
 
-      // Verify role is 'office'
+      // Verify role is staff (office / department / club)
       final profile = await SupabaseService.fetchCurrentProfile();
-      final office = await SupabaseService.fetchMyOffice();
+      final org = await SupabaseService.fetchMyOrganization();
 
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         MaterialPageRoute(
-          builder: (_) => DashboardScreen(profile: profile, office: office),
+          builder: (_) => DashboardScreen(profile: profile, organization: org),
         ),
       );
     } catch (e) {
       if (!mounted) return;
       final msg = e.toString();
-      if (msg.contains('office staff only')) {
-        _showError('This app is for office staff only.');
+      if (msg.contains('staff only')) {
+        _showError('This app is for staff only.');
       } else if (msg.contains('Invalid login credentials') ||
           msg.contains('invalid credentials')) {
         _showError('Incorrect email or password.');

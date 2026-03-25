@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import '../models/profile.dart';
-import '../models/office.dart';
+import '../models/organization.dart';
 import '../models/event.dart';
 import '../services/supabase_service.dart';
 import '../widgets/event_card.dart';
@@ -12,9 +12,9 @@ import 'attendance_history_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
   final Profile profile;
-  final Office? office;
+  final Organization? organization;
 
-  const DashboardScreen({required this.profile, this.office, super.key});
+  const DashboardScreen({required this.profile, this.organization, super.key});
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
@@ -31,13 +31,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   Future<void> _loadEvents() async {
-    if (widget.office == null) {
+    if (widget.organization == null) {
       setState(() => _isLoading = false);
       return;
     }
     try {
-      final events =
-          await SupabaseService.fetchEventsForOffice(widget.office!.id);
+      final events = await SupabaseService.fetchEventsForSource(
+          widget.organization!.sourceType, widget.organization!.id);
       setState(() {
         _events = events;
         _isLoading = false;
@@ -56,7 +56,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final officeName = widget.office?.name ?? 'No office assigned';
+    final orgName = widget.organization?.name ?? 'No organization assigned';
     return Scaffold(
       backgroundColor: backgroundColor,
       appBar: AppBar(
@@ -71,19 +71,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
             ),
             Text(
-              officeName,
+              orgName,
               style: const TextStyle(color: Colors.white70, fontSize: 12),
             ),
           ],
         ),
         actions: [
-          if (widget.office != null)
+          if (widget.organization != null)
             IconButton(
               icon: const Icon(Icons.checklist, color: Colors.white),
               tooltip: 'Requirements',
               onPressed: () => Navigator.of(context).push(
                 MaterialPageRoute(
-                  builder: (_) => RequirementsScreen(office: widget.office!),
+                  builder: (_) =>
+                      RequirementsScreen(organization: widget.organization!),
                 ),
               ),
             ),
@@ -106,7 +107,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    if (widget.office == null)
+                    if (widget.organization == null)
                       Container(
                         padding: const EdgeInsets.all(16),
                         decoration: BoxDecoration(
@@ -120,7 +121,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             SizedBox(width: 8),
                             Expanded(
                               child: Text(
-                                'No office is linked to your account. '
+                                'No organization is linked to your account. '
                                 'Please contact an admin.',
                                 style: TextStyle(color: Colors.orange),
                               ),
@@ -130,7 +131,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       )
                     else ...[
                       Text(
-                        'Events for ${widget.office!.name}',
+                        'Events for ${widget.organization!.name}',
                         style: Theme.of(context)
                             .textTheme
                             .titleLarge
@@ -179,10 +180,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               event: event,
                               onTap: () => Navigator.of(context).push(
                                 MaterialPageRoute(
-                                  builder: (_) => AttendanceScreen(event: event),
+                                  builder: (_) =>
+                                      AttendanceScreen(event: event),
                                 ),
                               ),
-                              onViewHistory: () => Navigator.of(context).push(
+                              onViewHistory: () =>
+                                  Navigator.of(context).push(
                                 MaterialPageRoute(
                                   builder: (_) =>
                                       AttendanceHistoryScreen(event: event),
@@ -221,10 +224,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
     DateTime selectedDate = DateTime.now();
 
     // Load requirements before opening dialog — no flicker
-    final List<Map<String, dynamic>> attendanceReqs = widget.office != null
-        ? await SupabaseService.fetchAttendanceRequirementsForOffice(widget.office!.id)
-        : [];
+    final List<Map<String, dynamic>> attendanceReqs =
+        widget.organization != null
+            ? await SupabaseService.fetchAttendanceRequirementsForSource(
+                widget.organization!.sourceType, widget.organization!.id)
+            : [];
     String? selectedReqId;
+    bool requireLogout = false;
 
     if (!mounted) return;
 
@@ -233,7 +239,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       barrierDismissible: false,
       builder: (ctx) => StatefulBuilder(
         builder: (ctx, setDialogState) {
-
           return AlertDialog(
             backgroundColor: backgroundColor,
             title: const Text(
@@ -377,6 +382,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       }
                     },
                   ),
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: requireLogout,
+                    onChanged: isCreating
+                        ? null
+                        : (v) => setDialogState(
+                            () => requireLogout = v ?? false),
+                    title: const Text(
+                      'Require Time Out',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Only count attendance when both time in and time out are recorded',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    activeColor: primaryRed,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
+                  ),
                 ],
               ),
             ),
@@ -404,11 +429,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         final messenger = ScaffoldMessenger.of(context);
                         try {
                           final event = await SupabaseService.createEvent(
-                            officeId: widget.office!.id,
+                            sourceType: widget.organization!.sourceType,
+                            sourceId: widget.organization!.id,
                             name: name,
                             description: descController.text.trim(),
                             eventDate: selectedDate,
                             requirementId: selectedReqId,
+                            requireLogout: requireLogout,
                           );
                           if (mounted) {
                             setState(() => _events.insert(0, event));
@@ -446,11 +473,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final descController = TextEditingController(text: event.description);
     bool isSaving = false;
     DateTime selectedDate = event.eventDate;
+    bool requireLogout = event.requireLogout;
 
-    // Load requirements before opening dialog — no flicker
-    final List<Map<String, dynamic>> attendanceReqs = widget.office != null
-        ? await SupabaseService.fetchAttendanceRequirementsForOffice(widget.office!.id)
-        : [];
+    // Load requirements + attendance count before opening dialog
+    final List<Map<String, dynamic>> attendanceReqs =
+        widget.organization != null
+            ? await SupabaseService.fetchAttendanceRequirementsForSource(
+                widget.organization!.sourceType, widget.organization!.id)
+            : [];
+    final int attendanceCount =
+        await SupabaseService.countAttendanceForEvent(event.id);
+    // Only lock if a requirement is already linked AND attendance exists
+    final bool requirementLocked =
+        attendanceCount > 0 && event.requirementId != null;
+
     // Pre-select the event's linked requirement if it exists in the list
     final exists = attendanceReqs.any((r) => r['id'] == event.requirementId);
     String? selectedReqId = exists ? event.requirementId : null;
@@ -554,57 +590,111 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ),
                   const SizedBox(height: 12),
-                  DropdownButtonFormField<String?>(
-                    value: selectedReqId,
-                    decoration: InputDecoration(
-                      labelText: 'Linked Requirement (optional)',
-                      labelStyle: const TextStyle(color: primaryRed),
-                      border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(8)),
-                      enabledBorder: OutlineInputBorder(
+                  IgnorePointer(
+                    ignoring: requirementLocked,
+                    child: Opacity(
+                      opacity: requirementLocked ? 0.5 : 1.0,
+                      child: DropdownButtonFormField<String?>(
+                        value: selectedReqId,
+                        decoration: InputDecoration(
+                          labelText: 'Linked Requirement (optional)',
+                          labelStyle: const TextStyle(color: primaryRed),
+                          border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(8)),
+                          enabledBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: primaryRed),
+                          ),
+                        ),
+                        hint: Text(
+                          attendanceReqs.isEmpty
+                              ? 'No attendance requirements'
+                              : 'Select requirement',
+                          style: TextStyle(color: Colors.grey[500], fontSize: 14),
+                        ),
+                        items: [
+                          const DropdownMenuItem<String?>(
+                            value: null,
+                            child: Text('None'),
+                          ),
+                          ...attendanceReqs.map((r) => DropdownMenuItem<String?>(
+                                value: r['id'] as String,
+                                child: Text(r['name'] as String),
+                              )),
+                        ],
+                        onChanged: requirementLocked
+                            ? null
+                            : (v) {
+                                setDialogState(() => selectedReqId = v);
+                                if (v != null) {
+                                  final conflict = _events.any((e) =>
+                                    e.id != event.id &&
+                                    e.requirementId == v &&
+                                    e.eventDate.year == selectedDate.year &&
+                                    e.eventDate.month == selectedDate.month &&
+                                    e.eventDate.day == selectedDate.day,
+                                  );
+                                  if (conflict) {
+                                    ScaffoldMessenger.of(context).showSnackBar(
+                                      const SnackBar(
+                                        content: Text(
+                                          'Warning: another event on this date already uses this requirement.',
+                                        ),
+                                        backgroundColor: Colors.orange,
+                                        duration: Duration(seconds: 4),
+                                      ),
+                                    );
+                                  }
+                                }
+                              },
+                      ),
+                    ),
+                  ),
+                  if (requirementLocked) ...[
+                    const SizedBox(height: 8),
+                    Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: Colors.amber.shade50,
                         borderRadius: BorderRadius.circular(8),
-                        borderSide: const BorderSide(color: primaryRed),
+                        border: Border.all(color: Colors.amber.shade300),
                       ),
-                    ),
-                    hint: Text(
-                      attendanceReqs.isEmpty
-                          ? 'No attendance requirements'
-                          : 'Select requirement',
-                      style: TextStyle(color: Colors.grey[500], fontSize: 14),
-                    ),
-                    items: [
-                      const DropdownMenuItem<String?>(
-                        value: null,
-                        child: Text('None'),
-                      ),
-                      ...attendanceReqs.map((r) => DropdownMenuItem<String?>(
-                            value: r['id'] as String,
-                            child: Text(r['name'] as String),
-                          )),
-                    ],
-                    onChanged: (v) {
-                      setDialogState(() => selectedReqId = v);
-                      if (v != null) {
-                        final conflict = _events.any((e) =>
-                          e.id != event.id &&
-                          e.requirementId == v &&
-                          e.eventDate.year == selectedDate.year &&
-                          e.eventDate.month == selectedDate.month &&
-                          e.eventDate.day == selectedDate.day,
-                        );
-                        if (conflict) {
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                              content: Text(
-                                'Warning: another event on this date already uses this requirement.',
-                              ),
-                              backgroundColor: Colors.orange,
-                              duration: Duration(seconds: 4),
+                      child: Row(
+                        children: [
+                          Icon(Icons.lock_outline,
+                              size: 16, color: Colors.amber.shade800),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Requirement cannot be changed after attendance '
+                              'has been recorded ($attendanceCount scan${attendanceCount == 1 ? '' : 's'}).',
+                              style: TextStyle(
+                                  fontSize: 12, color: Colors.amber.shade900),
                             ),
-                          );
-                        }
-                      }
-                    },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 8),
+                  CheckboxListTile(
+                    value: requireLogout,
+                    onChanged: isSaving
+                        ? null
+                        : (v) => setDialogState(
+                            () => requireLogout = v ?? false),
+                    title: const Text(
+                      'Require Time Out',
+                      style: TextStyle(fontSize: 14),
+                    ),
+                    subtitle: const Text(
+                      'Only count attendance when both time in and time out are recorded',
+                      style: TextStyle(fontSize: 11),
+                    ),
+                    activeColor: primaryRed,
+                    contentPadding: EdgeInsets.zero,
+                    dense: true,
+                    controlAffinity: ListTileControlAffinity.leading,
                   ),
                 ],
               ),
@@ -639,6 +729,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             eventDate: selectedDate,
                             requirementId: selectedReqId,
                             clearRequirement: selectedReqId == null,
+                            previousRequirementId: event.requirementId,
+                            requireLogout: requireLogout,
                           );
                           if (mounted) {
                             setState(() {
