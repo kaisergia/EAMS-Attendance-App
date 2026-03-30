@@ -2,7 +2,7 @@ class Organization {
   final String id;
   final String name;
   final String code;
-  final String sourceType; // 'office', 'department', 'club'
+  final String sourceType; // 'office', 'department', 'club', 'csg_department_lgu', 'cspsg_division', 'csg', 'cspsg'
   final String? headId;
 
   Organization({

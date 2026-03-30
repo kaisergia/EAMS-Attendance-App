@@ -34,7 +34,7 @@ class SupabaseService {
         .eq('id', uid)
         .single();
     final profile = Profile.fromMap(data);
-    if (!['office', 'department', 'club'].contains(profile.role)) {
+    if (!['office', 'department', 'club', 'csg_department_lgu', 'cspsg_division', 'csg', 'cspsg'].contains(profile.role)) {
       throw Exception('This app is for staff only.');
     }
     return profile;
@@ -61,6 +61,22 @@ class SupabaseService {
       final data = await supabase.from('clubs').select().eq('adviser_id', uid).maybeSingle();
       if (data == null) return null;
       return Organization.fromMap(data, 'club');
+    } else if (role == 'csg_department_lgu') {
+      final data = await supabase.from('csg_department_lgus').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'csg_department_lgu');
+    } else if (role == 'cspsg_division') {
+      final data = await supabase.from('cspsg_divisions').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'cspsg_division');
+    } else if (role == 'csg') {
+      final data = await supabase.from('csg').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'csg');
+    } else if (role == 'cspsg') {
+      final data = await supabase.from('cspsg').select().eq('head_id', uid).maybeSingle();
+      if (data == null) return null;
+      return Organization.fromMap(data, 'cspsg');
     }
     return null;
   }
