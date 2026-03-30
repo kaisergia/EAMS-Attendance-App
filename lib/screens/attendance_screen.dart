@@ -378,7 +378,22 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         return;
       }
 
-      // 2. Check if requirement already fulfilled (different event, same req)
+      // 2. If recording TIME OUT, verify TIME IN exists first
+      if (_isTimeOut && widget.event.requireLogout) {
+        final hasTimeIn = await SupabaseService.hasStudentTimeIn(
+          eventId: widget.event.id,
+          studentProfileId: student.id,
+        );
+        if (!hasTimeIn) {
+          _showSnack(
+              'Student $rawStudentId has no TIME IN record for this event. TIME IN must be recorded first.',
+              Colors.orange);
+          setState(() => _isProcessing = false);
+          return;
+        }
+      }
+
+      // 3. Check if requirement already fulfilled (different event, same req)
       bool alreadyFulfilled = false;
       if (widget.event.requirementId != null) {
         alreadyFulfilled = await SupabaseService.isRequirementAlreadyFulfilled(
@@ -387,14 +402,14 @@ class _AttendanceScreenState extends State<AttendanceScreen> {
         );
       }
 
-      // 3. Insert attendance record (trigger upserts requirement_submission)
+      // 4. Insert attendance record (trigger upserts requirement_submission)
       await SupabaseService.recordAttendance(
         eventId: widget.event.id,
         studentProfileId: student.id,
         attendanceType: _isTimeOut ? 'log_out' : 'log_in',
       );
 
-      // 4. Show success dialog
+      // 5. Show success dialog
       if (mounted) {
         _showSuccessDialog(
           student,

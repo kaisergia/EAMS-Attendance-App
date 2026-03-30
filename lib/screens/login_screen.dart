@@ -147,7 +147,7 @@ class _LoginScreenState extends State<LoginScreen> {
     try {
       await SupabaseService.signInWithEmail(email, password);
 
-      // Verify role is staff (office / department / club)
+      // Verify role is staff (office / department / club / csg_department_lgu / cspsg_division / csg / cspsg)
       final profile = await SupabaseService.fetchCurrentProfile();
       final org = await SupabaseService.fetchMyOrganization();
 

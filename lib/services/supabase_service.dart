@@ -25,7 +25,7 @@ class SupabaseService {
   // ── Profile ───────────────────────────────────────────────────────────────
 
   /// Fetches the profile for the currently authenticated user.
-  /// Throws if role is not one of 'office', 'department', 'club'.
+  /// Throws if role is not one of 'office', 'department', 'club', 'csg_department_lgu', 'cspsg_division', 'csg', 'cspsg'.
   static Future<Profile> fetchCurrentProfile() async {
     final uid = supabase.auth.currentUser!.id;
     final data = await supabase
@@ -315,6 +315,21 @@ class SupabaseService {
         .eq('student_id', studentProfileId)
         .eq('requirement_id', requirementId)
         .inFilter('status', ['submitted', 'approved'])
+        .maybeSingle();
+    return data != null;
+  }
+
+  /// Checks if a student already has a TIME IN (log_in) record for a given event.
+  static Future<bool> hasStudentTimeIn({
+    required String eventId,
+    required String studentProfileId,
+  }) async {
+    final data = await supabase
+        .from('attendance_records')
+        .select('id')
+        .eq('event_id', eventId)
+        .eq('student_id', studentProfileId)
+        .eq('attendance_type', 'log_in')
         .maybeSingle();
     return data != null;
   }
