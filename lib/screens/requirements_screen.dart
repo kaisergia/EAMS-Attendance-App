@@ -127,6 +127,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
     bool isRequired = true;
     bool requiresUpload = false;
     bool isAttendance = false;
+    List<String> selectedYearLevels = [];
     bool isSaving = false;
 
     showDialog(
@@ -175,6 +176,50 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                     if (v) requiresUpload = false;
                   }),
                 ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Applies to Year Levels (Optional)',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: primaryRed),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: ['1', '2', '3', '4'].map((year) {
+                    final isSelected = selectedYearLevels.contains(year);
+                    return FilterChip(
+                      label: Text('Yr $year'),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setDialogState(() {
+                          if (selected) {
+                            selectedYearLevels.add(year);
+                          } else {
+                            selectedYearLevels.remove(year);
+                          }
+                        });
+                      },
+                      selectedColor: primaryRed.withOpacity(0.2),
+                      checkmarkColor: primaryRed,
+                      labelStyle: TextStyle(
+                        color: isSelected ? primaryRed : Colors.black87,
+                        fontSize: 12,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (selectedYearLevels.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'No selection = applies to all year levels.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ),
                 if (isAttendance)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
@@ -234,6 +279,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                           isRequired: isRequired,
                           requiresUpload: requiresUpload,
                           isAttendance: isAttendance,
+                          applicableYearLevels: selectedYearLevels,
                         );
                         if (mounted) {
                           nav.pop();
@@ -273,6 +319,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
     bool isRequired = req['is_required'] as bool? ?? true;
     bool requiresUpload = req['requires_upload'] as bool? ?? false;
     bool isAttendance = req['is_attendance'] as bool? ?? false;
+    List<String> selectedYearLevels = List<String>.from(req['applicable_year_levels'] ?? []);
     bool isSaving = false;
 
     showDialog(
@@ -321,6 +368,50 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                     if (v) requiresUpload = false;
                   }),
                 ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Applies to Year Levels (Optional)',
+                  style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: primaryRed),
+                ),
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 8,
+                  children: ['1', '2', '3', '4'].map((year) {
+                    final isSelected = selectedYearLevels.contains(year);
+                    return FilterChip(
+                      label: Text('Yr $year'),
+                      selected: isSelected,
+                      onSelected: (selected) {
+                        setDialogState(() {
+                          if (selected) {
+                            selectedYearLevels.add(year);
+                          } else {
+                            selectedYearLevels.remove(year);
+                          }
+                        });
+                      },
+                      selectedColor: primaryRed.withOpacity(0.2),
+                      checkmarkColor: primaryRed,
+                      labelStyle: TextStyle(
+                        color: isSelected ? primaryRed : Colors.black87,
+                        fontSize: 12,
+                        fontWeight:
+                            isSelected ? FontWeight.bold : FontWeight.normal,
+                      ),
+                    );
+                  }).toList(),
+                ),
+                if (selectedYearLevels.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.only(top: 4),
+                    child: Text(
+                      'No selection = applies to all year levels.',
+                      style: TextStyle(fontSize: 11, color: Colors.grey),
+                    ),
+                  ),
                 if (isAttendance)
                   Container(
                     margin: const EdgeInsets.only(top: 8),
@@ -379,6 +470,7 @@ class _RequirementsScreenState extends State<RequirementsScreen> {
                           isRequired: isRequired,
                           requiresUpload: requiresUpload,
                           isAttendance: isAttendance,
+                          applicableYearLevels: selectedYearLevels,
                         );
                         if (mounted) {
                           nav.pop();
@@ -604,6 +696,14 @@ class _RequirementCard extends StatelessWidget {
                   _chip('Scan Only', Colors.indigo.shade50,
                       Colors.indigo.shade700,
                       icon: Icons.qr_code_scanner),
+                if ((req['applicable_year_levels'] as List?)?.isNotEmpty == true)
+                  ... (req['applicable_year_levels'] as List).map((yr) => _chip(
+                    'Yr $yr',
+                    primaryRed.withOpacity(0.1),
+                    primaryRed,
+                  )),
+                if ((req['applicable_year_levels'] as List?)?.isEmpty == true || req['applicable_year_levels'] == null)
+                  _chip('All Years', Colors.grey.shade100, Colors.grey[600]!),
               ],
             ),
             const SizedBox(height: 10),

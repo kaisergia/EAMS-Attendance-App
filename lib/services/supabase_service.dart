@@ -6,6 +6,19 @@ import '../models/event.dart';
 class SupabaseService {
   static final supabase = Supabase.instance.client;
 
+  static Future<int> revalidateSourceClearanceItems({
+    required String sourceType,
+    required String sourceId,
+    String? reason,
+  }) async {
+    final data = await supabase.rpc('revalidate_source_clearance_items', params: {
+      'p_source_type': sourceType,
+      'p_source_id': sourceId,
+      'p_reason': reason,
+    });
+    return (data as int?) ?? 0;
+  }
+
   // ── Auth ──────────────────────────────────────────────────────────────────
 
   static Future<AuthResponse> signInWithEmail(
@@ -199,6 +212,7 @@ class SupabaseService {
     bool isRequired = true,
     bool requiresUpload = false,
     bool isAttendance = false,
+    List<String>? applicableYearLevels,
   }) async {
     final existing = await supabase
         .from('requirements')
@@ -220,6 +234,7 @@ class SupabaseService {
       'is_required': isRequired,
       'requires_upload': requiresUpload,
       'is_attendance': isAttendance,
+      if (applicableYearLevels != null) 'applicable_year_levels': applicableYearLevels,
       'order': nextOrder,
       'is_published': false,
     }).select().single();
@@ -234,6 +249,7 @@ class SupabaseService {
     bool? requiresUpload,
     bool? isAttendance,
     bool? isPublished,
+    List<String>? applicableYearLevels,
   }) async {
     final updates = <String, dynamic>{};
     if (name != null) updates['name'] = name;
@@ -242,6 +258,7 @@ class SupabaseService {
     if (requiresUpload != null) updates['requires_upload'] = requiresUpload;
     if (isAttendance != null) updates['is_attendance'] = isAttendance;
     if (isPublished != null) updates['is_published'] = isPublished;
+    if (applicableYearLevels != null) updates['applicable_year_levels'] = applicableYearLevels;
 
     final data = await supabase
         .from('requirements')
@@ -249,6 +266,18 @@ class SupabaseService {
         .eq('id', id)
         .select()
         .single();
+
+    if (updates.containsKey('applicable_year_levels') ||
+        updates.containsKey('is_required') ||
+        updates.containsKey('is_published')) {
+      await revalidateSourceClearanceItems(
+        sourceType: data['source_type'] as String,
+        sourceId: data['source_id'] as String,
+        reason:
+            'A requirement was updated after your submission. Please review and re-submit.',
+      );
+    }
+
     return data;
   }
 
